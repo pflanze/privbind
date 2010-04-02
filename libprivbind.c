@@ -100,6 +100,7 @@ static int aquire_lock( int aquire )
          ;
 
       pthread_mutex_unlock(&mutex);
+      // XXX: we didn't even try to lock it for here?!
 
       return res==0;
    }
