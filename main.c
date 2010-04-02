@@ -127,6 +127,11 @@ int parse_cmdline( int argc, char *argv[], struct passwd_plus *pwp )
                         options.gid=pw->pw_gid;
                     }
                 } else {
+		    // XXX: should probably really disallow setting by
+		    // user id unless at least an explicit flag has
+		    // been given. This just sounds too fishy, at
+		    // least now that the behaviour is not even the
+		    // same anymore.
                     options.uid=atoi(optarg);
 		    // XXX: why not use the same code as below for
 		    // groups? Is it because uid_t might not be the
