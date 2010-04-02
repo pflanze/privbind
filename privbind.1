@@ -34,6 +34,8 @@ The
 option is mandatory, and specifies under which user to run the given command.
 The user can be specified using either a username or a numeric user id.
 It should be an unprivileged (non-root) user.
+Note: when giving a numeric user id, the environment (like USER,
+LOGNAME, MAIL) will remain unchanged!
 .TP
 .B \-g
 Specifies the group to switch to when running the given command. If this
