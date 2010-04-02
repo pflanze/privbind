@@ -51,6 +51,10 @@ static void master_cleanup()
 }
 
 /* Aquite or release the lock on the communication socket */
+
+// (Why does it need a lock on the communication socket? I guess the
+// answer is because there are no id's matching query and answer.)
+
 static int acquire_lock( int acquire )
 {
    static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
