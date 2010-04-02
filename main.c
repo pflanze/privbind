@@ -102,6 +102,16 @@ int parse_cmdline( int argc, char *argv[] )
                     if( options.gid==(gid_t)-1 ) {
                         options.gid=pw->pw_gid;
                     }
+		    /* set environment variables */
+		    setenv ("USER", pw->pw_name, TRUE);
+		    setenv ("LOGNAME", pw->pw_name, TRUE);
+		    setenv ("HOME", pw->pw_dir, TRUE);
+		    //setenv ("MAIL", TRUE);
+		    unsetenv ("MAIL"); // since I don't have any real value
+		    // XXX: should also set resource limits!!!
+		    // XXX: and possibly clean out private env variables?
+		    // XXX: and what else?.... is the su functionality in a library?
+		    //XXX: d'oh, these settings should maybe only be done in the process before exec!
                 } else {
                     options.uid=atoi(optarg);
                     if( options.uid==0 ) {
