@@ -70,6 +70,11 @@ static int aquire_lock( int aquire )
       }
 
       /* Aquire the fcntl lock on the socket. Need to retry in case of EINTR */
+
+      // XXX: why are there both a pthread mutex and an fcntl lock? I
+      // guess fcntl lock for cases where the program forked; but
+      // wouldn't fcntl alone suffice?
+      
       lock.l_type=F_WRLCK;
 
       int res;
