@@ -195,6 +195,11 @@ int process_child( int sv[2], int argc, char *argv[] )
     close(sv[1]);
 
     /* Rename the child socket to the pre-determined fd */
+    // XXX: why use a static fd number and not just get whatever the
+    // OS returns? Is this to avoid changing the normal fd numbering
+    // in the daemon (user program)? But why would it care? I'm
+    // wondering because stacking wouldn't work and maybe more
+    // importantly you could make privbind fail on purpose.
     if( dup2(sv[0], COMM_SOCKET)<0 ) {
         perror("privbind: dup2");
         return 2;
