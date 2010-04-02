@@ -201,6 +201,7 @@ int process_application( int sv[2], int argc, char *argv[], const struct passwd_
     if( setgroups(0, NULL )<0 ) {
 	// XXX: setting secondary groups should maybe be implemented some time
         perror("privbind: setgroups");
+	// XXX: why not also close(sv[0]); here?
         return 2;
     }
     if( setgid(options.gid)<0 ) {
