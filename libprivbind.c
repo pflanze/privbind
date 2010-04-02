@@ -45,6 +45,8 @@ static void master_cleanup()
     /* The helper process has quit */
     master_quit=1;
     unsetenv("LD_PRELOAD");
+    // ^^ XXX: not correct in the case where it has been a join of a
+    // previous setting and ours; restore the previous value instead?
     close(COMM_SOCKET);
 }
 
