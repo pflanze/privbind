@@ -100,6 +100,7 @@ static int acquire_lock( int acquire )
          ;
 
       pthread_mutex_unlock(&mutex);
+      // XXX: we didn't even try to lock it for here?!
 
       return res==0;
    }
