@@ -55,7 +55,7 @@ static void master_cleanup()
 // (Why does it need a lock on the communication socket? I guess the
 // answer is because there are no id's matching query and answer.)
 
-static int aquire_lock( int aquire )
+static int acquire_lock( int acquire )
 {
    static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
    struct flock lock;
@@ -64,7 +64,7 @@ static int aquire_lock( int aquire )
    lock.l_start=0;
    lock.l_len=0;
 
-   if( aquire ) {
+   if( acquire ) {
       if( pthread_mutex_lock(&mutex)!=0 )
       {
          /* The mutex is invalid. Assume we terminated */
@@ -73,7 +73,7 @@ static int aquire_lock( int aquire )
          return 0;
       }
 
-      /* Aquire the fcntl lock on the socket. Need to retry in case of EINTR */
+      /* Acquire the fcntl lock on the socket. Need to retry in case of EINTR */
 
       // XXX: why are there both a pthread mutex and an fcntl lock? I
       // guess fcntl lock for cases where the program forked; but
@@ -157,7 +157,7 @@ int bind( int sockfd, const struct sockaddr *my_addr, socklen_t addrlen)
 
     int retval=oret;
 
-    if( aquire_lock(1) ) {
+    if( acquire_lock(1) ) {
        if( sendmsg( COMM_SOCKET, &msghdr, MSG_NOSIGNAL )>0 ) {
           /* Request was sent - wait for reply */
           struct ipc_msg_reply reply;
@@ -180,7 +180,7 @@ int bind( int sockfd, const struct sockaddr *my_addr, socklen_t addrlen)
           }
        }
 
-       aquire_lock(0);
+       acquire_lock(0);
     }
 
     /* Make sure we return the original errno, regardless of what caused us to fail */
