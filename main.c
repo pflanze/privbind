@@ -104,6 +104,9 @@ int parse_cmdline( int argc, char *argv[] )
                     }
                 } else {
                     options.uid=atoi(optarg);
+		    // XXX: why not use the same code as below for
+		    // groups? Is it because uid_t might not be the
+		    // same as gid_t?
                     if( options.uid==0 ) {
                         fprintf(stderr, "Username '%s' not found\n", optarg);
                         exit(1);
