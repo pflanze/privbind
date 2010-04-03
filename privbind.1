@@ -67,10 +67,11 @@ Shows a short help screen, and exits.
 .SH "EXIT STATUS"
 Using technical jargon,
 .B privbind
-execs \fIcommand\fR as its main process, running itself in the background. The
-practical upshot of this, in layman's terms, is that the user never sees
-\fBprivbind\fR's exit status. When running \fBprivbind\fR, the process will exit
-whenever, and with whatever exit status, \fIcommand\fR does.
+execs \fIcommand\fR as its main process, running itself in the
+background. The practical upshot of this is that the user never sees
+\fBprivbind\fR's exit status if it was possible for the latter to put
+itself into the background and exec the application binary; instead,
+the application's exit status will be visible directly.
 
 The above point should be particularly noted when using \fBprivbind\fR to run daemons.
 
