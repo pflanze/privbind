@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <dirent.h>
 
 #include "config.h"
 #include "ipc.h"
@@ -299,9 +300,30 @@ int process_parent( int sv[2] )
 
     /* Don't hold on to resources that we will not use */
     chdir("/");
-    close(0);
-    close(1);
-    /* do not close(2) as we still use stderr */
+
+    /* Close open filehandles */
+    {
+	DIR *d= opendir("/proc/self/fd");
+	struct dirent* item;
+	int dir_fd;
+	if (!d) {
+	    perror("opendir /proc/self/fd");
+	    return 1;
+	}
+	dir_fd= dirfd(d);
+	while ((item= readdir(d))) {
+	    if (item->d_type != DT_DIR) {
+		int fd= atoi(item->d_name);
+		/* do not close fd 2 as we still use stderr */
+		if ((fd!=dir_fd) && (fd!=2) && (fd!=sv[1]))
+		    close(fd);
+	    }
+	}
+	if (closedir(d)) {
+	    perror("closedir");
+	    return 1;
+	}
+    }
     
     /* Don't be killed by signals sent to the previous process group */
     setsid();
