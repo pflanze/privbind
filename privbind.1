@@ -34,10 +34,13 @@ The
 option is mandatory, and specifies under which user to run the given command.
 The user can be specified using either a username or a numeric user id.
 It should be an unprivileged (non-root) user.
+Note: when giving a numeric user id, the environment (like USER,
+LOGNAME, MAIL) will remain unchanged!
 .TP
 .B \-g
 Specifies the group to switch to when running the given command. If this
 option is missing, then the given user's default group is used.
+Note: the secondary groups are currently always left empty.
 .TP
 .BR \-n
 .BR privbind 's
@@ -64,13 +67,11 @@ Shows a short help screen, and exits.
 .SH "EXIT STATUS"
 Using technical jargon,
 .B privbind
-execs \fIcommand\fR as its main process, running itself in the background (as
-a child of the application's process). The
-practical upshot of this, in layman's terms, is that the user never sees
-\fBprivbind\fR's exit status. When running \fBprivbind\fR, the process will exit
-whenever, and with whatever exit status, \fIcommand\fR does.
-
-The above point should be particularly noted when using \fBprivbind\fR to run daemons.
+execs \fIcommand\fR as its main process, running itself in the
+background. The practical upshot of this is that the user never sees
+\fBprivbind\fR's exit status if it was possible for the latter to put
+itself into the background and exec the application binary; instead,
+the application's exit status will be visible directly.
 
 .SH "SECURITY CONSIDERATIONS"
 \fBprivbind\fR has no SUID parts, and runs within the confines of a single process.
@@ -87,7 +88,7 @@ privileges and runs (exec(2)) the command, the other remains as root.
 \fBPrivbind\fR uses LD_PRELOAD to intercept every call to bind(2) made
 by the program. Calls that can be completed non-privileged are done so.
 Calls that require root privileges are forwarded to the root process, that
-carry them out on the program's behalf.
+carries them out on behalf of the program.
 
 A more detailed explanation is available in the README file.
 

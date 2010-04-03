@@ -31,12 +31,35 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
+#include <dirent.h>
 
 #include "config.h"
 #include "ipc.h"
 
 #define FALSE (0!=0)
 #define TRUE (0==0)
+
+/* Since we need to keep getpwnam info for some 'time', use a version
+   that doesn't risk it's result being overwritten accidentally; wrap
+   getpwnam_r so that only one variable has to be passed around in the
+   program. */
+#define passwd_plus_BUFSIZE 5000
+struct passwd_plus {
+    struct passwd pwbuf;
+    char buf [passwd_plus_BUFSIZE];
+    struct passwd *pw;
+};
+int getpwnam_plus (const char *name, struct passwd_plus *pwp) {
+    int res= getpwnam_r (name, &(pwp->pwbuf), pwp->buf, passwd_plus_BUFSIZE,
+			 &(pwp->pw));
+    if (res==0) {
+	assert (pwp->pw == &(pwp->pwbuf));
+    } else {
+	assert (pwp->pw == NULL);
+    }
+    return res;
+}
 
 struct cmdoptions {
     uid_t uid; /* UID to turn into */
@@ -73,7 +96,7 @@ void help( const char *progname )
 	"-h - This help screen\n");
 }
 
-int parse_cmdline( int argc, char *argv[] )
+int parse_cmdline( int argc, char *argv[], struct passwd_plus *pwp )
 {
     /* Fill in default values */
     options.numbinds=0;
@@ -95,7 +118,9 @@ int parse_cmdline( int argc, char *argv[] )
             break;
         case 'u':
             {
-                struct passwd *pw=getpwnam(optarg);
+		const struct passwd *pw;
+                getpwnam_plus(optarg, pwp);
+		pw= pwp->pw;
                 if( pw!=NULL ) {
                     options.uid=pw->pw_uid;
                     /* set the user's default group */
@@ -170,13 +195,11 @@ int parse_cmdline( int argc, char *argv[] )
     return optind;
 }
 
-/* Technically speaking, the "child" is the parent process. Internally, we call it by its semantics
- * rather than by its function.
- */
-int process_child( int sv[2], int argc, char *argv[] )
+int process_application( int sv[2], int argc, char *argv[], const struct passwd_plus *pwp )
 {
     /* Drop privileges */
     if( setgroups(0, NULL )<0 ) {
+	// XXX: setting secondary groups should maybe be implemented some time
         perror("privbind: setgroups");
         return 2;
     }
@@ -189,6 +212,18 @@ int process_child( int sv[2], int argc, char *argv[] )
         perror("privbind: setuid");
         close(sv[0]);
         return 2;
+    }
+    {
+	/* set environment variables */
+	const struct passwd *pw= pwp->pw;
+	setenv ("USER", pw->pw_name, TRUE);
+	setenv ("LOGNAME", pw->pw_name, TRUE);
+	setenv ("HOME", pw->pw_dir, TRUE);
+	//setenv ("MAIL", TRUE);
+	unsetenv ("MAIL"); // since I don't have any real value
+	// XXX: should also set resource limits!!!
+	// XXX: and possibly clean out private env variables?
+	// XXX: and what else?.... is the su functionality in a library?
     }
 
     /* Close the parent socket */
@@ -236,11 +271,11 @@ int process_child( int sv[2], int argc, char *argv[] )
     return 2;
 }
 
-/* See comment for "process_child" regarding reverse roles */
-int process_parent( int sv[2] )
+int process_service( int sv[2] )
 {
-    /* Some of the run options mean that we terminate before our "child". We don't want to confuse
-     * the child with SIGCHLD of which it is not aware.
+    /* Some of the run options mean that we can terminate before the
+       application. We don't want to confuse the latter with SIGCHLD
+       of which it is not aware.
      */
     int grandchild_pid=fork();
 
@@ -260,7 +295,37 @@ int process_parent( int sv[2] )
     /* Close the child socket */
     close(sv[0]);
 
-    /* wait for request from the child */
+    /* Don't hold on to resources that we will not use */
+    chdir("/");
+
+    /* Close open filehandles */
+    {
+	DIR *d= opendir("/proc/self/fd");
+	struct dirent* item;
+	int dir_fd;
+	if (!d) {
+	    perror("opendir /proc/self/fd");
+	    return 1;
+	}
+	dir_fd= dirfd(d);
+	while ((item= readdir(d))) {
+	    if (item->d_type != DT_DIR) {
+		int fd= atoi(item->d_name);
+		/* do not close fd 2 as we still use stderr */
+		if ((fd!=dir_fd) && (fd!=2) && (fd!=sv[1]))
+		    close(fd);
+	    }
+	}
+	if (closedir(d)) {
+	    perror("closedir");
+	    return 1;
+	}
+    }
+    
+    /* Don't be killed by signals sent to the previous process group */
+    setsid();
+
+    /* wait for request from the application process */
     do {
         struct msghdr msghdr={.msg_name=NULL};
         struct cmsghdr *cmsg;
@@ -323,8 +388,8 @@ int process_parent( int sv[2] )
                 fprintf(stderr, "privbind: empty request\n");
             }
         } else if (recvbytes == 0) {
-            /* If the child closed its end of the socket, it means the
-               child has exited. We have nothing more to do. */
+            /* If the application proces closed its end of the socket,
+               it means it has exited. We have nothing more to do. */
 
             return 0;
         } else {
@@ -333,16 +398,17 @@ int process_parent( int sv[2] )
     } while (options.numbinds == 0 || --options.numbinds > 0);
 
 
-    /* If we got here, the child has done the number of binds
-       specified by the -n option, and we have nothing more to do
-       and should exit, leaving behind no helper process */
+    /* If we got here, the application process has done the number of
+       binds specified by the -n option, and we have nothing more to
+       do and should exit, leaving behind no helper process */
 
     return 0;
 }
 
 int main( int argc, char *argv[] )
 {
-    int skipcount=parse_cmdline( argc, argv );
+    struct passwd_plus pwp;
+    int skipcount=parse_cmdline( argc, argv, &pwp );
     int ret=0;
 
     /* Warn if we're run as SUID */
@@ -350,7 +416,8 @@ int main( int argc, char *argv[] )
         fprintf(stderr, "!!!!Running privbind SUID is a security risk!!!!\n");
     }
 
-    /* Create a couple of sockets for communication with our children */
+    /* Create a couple of sockets for communication between the
+       application and service processes */
     int sv[2];
     if( socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sv)<0 ) {
         perror("privbind: socketpair");
@@ -370,7 +437,7 @@ int main( int argc, char *argv[] )
 
     case 0:
         /* We are the child */
-        ret=process_parent( sv );
+        ret= process_service( sv );
         break;
     default:
         /* We are the parent */
@@ -388,7 +455,7 @@ int main( int argc, char *argv[] )
 
                 if( ret==0 ) {
                     /* Child has indicated that it is ready */
-                    ret=process_child( sv, argc-skipcount, argv+skipcount );
+                    ret=process_application( sv, argc-skipcount, argv+skipcount, &pwp );
                 }
             } else {
                 fprintf(stderr, "privbind: root process terminated with signal %d\n", WTERMSIG(status) );
