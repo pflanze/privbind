@@ -1,0 +1,21 @@
+Source: privbind
+Section: utils
+Priority: extra
+Maintainer: Shachar Shemesh <shachar@debian.org>
+Build-Depends: debhelper (>= 5), autotools-dev
+Standards-Version: 3.7.2
+
+Package: privbind
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Allow unprivileged apps to bind to a privileged port
+ Privbind is a utility that allows running non-root applications, only giving
+ them one root privilege - binding to low (<1024) ports. The aim is similar,
+ though using a completely different method, to "authbind".
+ .
+ Privbind is a completely user space solution. It has no SUID executables, and
+ has to be started by a root user instead.
+ .
+ Privbind is useful for cases where there is a need to run an untrusted program
+ that needs to bind to a low port, but requires no other root privilege. It is
+ also useful if a daemon has no capability to drop privileges itself.

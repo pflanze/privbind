@@ -1,0 +1,14 @@
+privbind (1.1-1) unstable; urgency=low
+
+  * New upstream release
+  * Cleanup the debian/rules file from dh_make cruft
+  * Fix lintian error on calling make distclean and ignoring error
+
+ -- Shachar Shemesh <shachar@debian.org>  Tue, 10 Jul 2007 13:59:32 +0300
+
+privbind (0.2-1) unstable; urgency=low
+
+  * Initial release (Closes: #427605)
+
+ -- Shachar Shemesh <shachar@debian.org>  Tue,  5 Jun 2007 16:34:16 +0300
+
