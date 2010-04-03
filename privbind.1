@@ -73,8 +73,6 @@ background. The practical upshot of this is that the user never sees
 itself into the background and exec the application binary; instead,
 the application's exit status will be visible directly.
 
-The above point should be particularly noted when using \fBprivbind\fR to run daemons.
-
 .SH "SECURITY CONSIDERATIONS"
 \fBprivbind\fR has no SUID parts, and runs within the confines of a single process.
 This serves to minimize the security implications of using it. It is strongly advised
