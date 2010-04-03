@@ -31,12 +31,34 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include "config.h"
 #include "ipc.h"
 
 #define FALSE (0!=0)
 #define TRUE (0==0)
+
+/* Since we need to keep getpwnam info for some 'time', use a version
+   that doesn't risk it's result being overwritten accidentally; wrap
+   getpwnam_r so that only one variable has to be passed around in the
+   program. */
+#define passwd_plus_BUFSIZE 5000
+struct passwd_plus {
+    struct passwd pwbuf;
+    char buf [passwd_plus_BUFSIZE];
+    struct passwd *pw;
+};
+int getpwnam_plus (const char *name, struct passwd_plus *pwp) {
+    int res= getpwnam_r (name, &(pwp->pwbuf), pwp->buf, passwd_plus_BUFSIZE,
+			 &(pwp->pw));
+    if (res==0) {
+	assert (pwp->pw == &(pwp->pwbuf));
+    } else {
+	assert (pwp->pw == NULL);
+    }
+    return res;
+}
 
 struct cmdoptions {
     uid_t uid; /* UID to turn into */
@@ -73,7 +95,7 @@ void help( const char *progname )
 	"-h - This help screen\n");
 }
 
-int parse_cmdline( int argc, char *argv[] )
+int parse_cmdline( int argc, char *argv[], struct passwd_plus *pwp )
 {
     /* Fill in default values */
     options.numbinds=0;
@@ -95,23 +117,15 @@ int parse_cmdline( int argc, char *argv[] )
             break;
         case 'u':
             {
-                struct passwd *pw=getpwnam(optarg);
+		const struct passwd *pw;
+                getpwnam_plus(optarg, pwp);
+		pw= pwp->pw;
                 if( pw!=NULL ) {
                     options.uid=pw->pw_uid;
                     /* set the user's default group */
                     if( options.gid==(gid_t)-1 ) {
                         options.gid=pw->pw_gid;
                     }
-		    /* set environment variables */
-		    setenv ("USER", pw->pw_name, TRUE);
-		    setenv ("LOGNAME", pw->pw_name, TRUE);
-		    setenv ("HOME", pw->pw_dir, TRUE);
-		    //setenv ("MAIL", TRUE);
-		    unsetenv ("MAIL"); // since I don't have any real value
-		    // XXX: should also set resource limits!!!
-		    // XXX: and possibly clean out private env variables?
-		    // XXX: and what else?.... is the su functionality in a library?
-		    //XXX: d'oh, these settings should maybe only be done in the process before exec!
                 } else {
                     options.uid=atoi(optarg);
                     if( options.uid==0 ) {
@@ -183,7 +197,7 @@ int parse_cmdline( int argc, char *argv[] )
 /* Technically speaking, the "child" is the parent process. Internally, we call it by its semantics
  * rather than by its function.
  */
-int process_child( int sv[2], int argc, char *argv[] )
+int process_child( int sv[2], int argc, char *argv[], const struct passwd_plus *pwp )
 {
     /* Drop privileges */
     if( setgroups(0, NULL )<0 ) {
@@ -200,6 +214,18 @@ int process_child( int sv[2], int argc, char *argv[] )
         perror("privbind: setuid");
         close(sv[0]);
         return 2;
+    }
+    {
+	/* set environment variables */
+	const struct passwd *pw= pwp->pw;
+	setenv ("USER", pw->pw_name, TRUE);
+	setenv ("LOGNAME", pw->pw_name, TRUE);
+	setenv ("HOME", pw->pw_dir, TRUE);
+	//setenv ("MAIL", TRUE);
+	unsetenv ("MAIL"); // since I don't have any real value
+	// XXX: should also set resource limits!!!
+	// XXX: and possibly clean out private env variables?
+	// XXX: and what else?.... is the su functionality in a library?
     }
 
     /* Close the parent socket */
@@ -353,7 +379,8 @@ int process_parent( int sv[2] )
 
 int main( int argc, char *argv[] )
 {
-    int skipcount=parse_cmdline( argc, argv );
+    struct passwd_plus pwp;
+    int skipcount=parse_cmdline( argc, argv, &pwp );
     int ret=0;
 
     /* Warn if we're run as SUID */
@@ -399,7 +426,7 @@ int main( int argc, char *argv[] )
 
                 if( ret==0 ) {
                     /* Child has indicated that it is ready */
-                    ret=process_child( sv, argc-skipcount, argv+skipcount );
+                    ret=process_child( sv, argc-skipcount, argv+skipcount, &pwp );
                 }
             } else {
                 fprintf(stderr, "privbind: root process terminated with signal %d\n", WTERMSIG(status) );
